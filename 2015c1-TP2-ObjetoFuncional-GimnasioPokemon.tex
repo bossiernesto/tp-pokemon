@@ -1,0 +1,297 @@
+\documentclass[spanish,a4paper]{article}
+
+\newcommand{\version}{Trabajo Práctico} % final, interna o con soluciones (ojo escribirlo 'tal cual').
+\newcommand{\cuatrimestre}{1er cuatrimestre 2015} 
+\newcommand{\nombreTP}{Gimnasio Pokemon}
+\newcommand{\urlReferencia}{\url{http://es.pokemon.wikia.com/wiki/Pokémon}}
+\input{prelude}
+\begin{document}
+
+\maketitle
+
+
+\section{Introducción}
+
+En el mundo Pokémon, existen centros especializados para el entrenamiento y cuidado de Pokémon cuyo entrenadores son inexpertos o tienen poco tiempo. 
+Estos centros toman Pokémon de cualquier tipo y preparan un esquema de entrenamiento a medida, teniendo en cuenta los requisitos y objetivos del dueño. 
+Estos objetivos pueden abarcar desde aprender ciertos ataques, hasta llevar a cierta evolución deseadas o determinado estado del pokemon.
+Ya que entrenar un Pokémon es una tarea muy compleja (y puede lastimar al Pokémon), se busca implementar en Scala un programa que permita simular un posible entrenamiento antes de llevarlo a cabo, así como también elegir el mejor entrenamiento posible.
+\\\\
+\textbf{IMPORTANTE}: Este trabajo práctico debe implementarse de manera que se apliquen los principios del paradigma híbrido objeto-funcional enseñados en clase. No alcanza con hacer que el código funcione en objetos, hay que aprovechar las herramientas funcionales, poder justificar las decisiones de diseño y elegir el modo y lugar para usar conceptos de un paradigma u otro.
+Se tendrán en cuenta para la corrección los siguientes aspectos:
+
+\begin{itemize}
+\item Uso de Inmutabilidad vs. Mutabilidad
+\item Uso de Polimorfismo paramétrico (Pattern Matching) vs. Polimorfismo Ad-Hoc
+\item Aprovechamiento del polimorfismo entre objetos y funciones
+\item Uso adecuado de herramientas funcionales
+\item Cualidades de Software
+\item Diseño de interfaces y elección de tipos
+\end{itemize}
+
+\section{Descripción General del Dominio}
+
+Los Pokémon son animalitos fantásticos que los niños atrapan, entrenan y obligan a luchar por diversión. Sobre estas criaturas se han realizado diversos estudios, que nos permiten clasificarlos, estudiarlos y entrenarlos mejor, para volverlos maquinas de matar más efectivas.
+\\\\
+Nuestro simulador de entrenamiento tiene el objetivo de analizar el estado físico de un Pokémon en un momento dado, así como también el impacto que podría tener en él realizar cierta actividad (o secuencia de actividades), evitando así someter a la criaturita a un sufrimiento innecesario. Para esto hace falta tener un conocimiento detallado de la información con la que contamos acerca de los Pokémon.
+
+\subsection{Características}
+
+De cada Pokémon conocemos un conjunto de características que pueden ser fácilmente medidas y debemos tener en consideración a la hora de entrenar:
+
+\begin{itemize}
+\item \textbf{Nivel}: Representa el crecimiento general del Pokémon y puede ser usado para estimar, a grandes rasgos, que tan fuerte es (a mayor nivel, más poderoso). Se representa con un número entre 1 y 100.
+\item \textbf{Experiencia}: Es un valor numérico que indica la cantidad de experiencia acumulada a por el Pokémon a través del tiempo. El incremento en la experiencia conlleva a un incremento en el nivel.
+\item \textbf{Género}: Representa la identidad sexual del Pokémon. Puede ser Macho o Hembra.
+\item \textbf{Energía}: Es una medida de la salud general del Pokémon, la cual disminuye conforme este sufre daño o se esfuerza mucho y aumenta cuando descansa o se cura o se alimenta. Si la energía llega a 0, el Pokémon está en peligro…
+\item \textbf{Energía Máxima}: Es el máximo valor posible para la Energía. Cualquier incremento de Energía por encima de este valor es redondeado.
+\item \textbf{Peso}: Indica que tan pesado o voluminoso es un Pokémon. Está expresado en Kg. y va de 0 (algunos Pokémon son muy, muy livianos) en adelante.
+\item \textbf{Fuerza}: Valor que representa la tonificación muscular o capacidad de carga. Va de 1 a 100.
+\item \textbf{Velocidad}: Valor que representa la agilidad o rapidez de movimiento. Va de 1 a 100.
+\end{itemize}
+
+\subsection{Estado}
+
+Las características de un Pokémon reflejan los rasgos generales de su estado de salud; sin embargo, existen también ciertas aflicciones que pueden afectar a un Pokémon, más allá de sus características. Los cuadros conocidos se detallan a continuación:
+
+\begin{itemize}
+\item \textbf{Dormido}: El Pokémon está profundamente dormido. Muy exhausto para hacer nada.
+\item \textbf{Envenenado}: El Pokémon sufrió una intoxicación aguda y ahora le duele todo.
+\item \textbf{Paralizado}: El Pokémon no puede moverse en absoluto.
+\item \textbf{K.O.}: El Pokémon quedó inconsciente, al borde de la muerte.
+\end{itemize}
+
+Hay que tener en cuenta que un Pokémon solo puede sufrir uno de estos cuadros a la vez. 
+La forma en que los diversos estados impactan en la realización de actividades y las posibles transiciones de un estado al otro se describen en detalle más adelante.
+
+\subsection{Especie}
+
+Todos los Pokémon pertenecen a alguna de las 151\footnote{Sí. 151 especies. Todo lo que vino después es horrible y no existió. LALALALALALA} Especies\footnote{http://www.pokemon.com/es/pokedex/} conocidas. 
+La Especie a la que un Pokémon pertenece es determinante a la hora de calcular su progreso, cómo reaccionará su cuerpo ante cierta actividad, o si puede o no aprender un ataque.
+\\\\
+Cuando un pokémon sube de nivel, recibe un incremento en sus carácteristicas Energía Máxima, Peso, Fuerza y Velocidad que depende de su especie. 
+De cada especie se conoce cuánto incrementan las características de sus miembros con cada subida de nivel; además, la cantidad de Experiencia necesaria para subir al próximo nivel depende de la \textbf{ Resistencia Evolutiva } de su Especie (ver más adelante).
+\\\\
+También cada especie determina un \textbf{Peso Máximo}, que indica que tanto Peso pueden ganar sus miembros antes de que afecte su salud.
+\\\\
+De cada especie se conoce además su \textbf{Tipo}. 
+El Tipo representa la afinidad de los miembros de una Especie a cierto elemento o naturaleza y su destreza natural (o no) para realizar ciertas actividades. 
+Todas las especies poseen un \textit{ Tipo } \textit{"Principal"}, sin embargo, algunas especies poseen también un Tipo \textit{"Secundario"}, que denota un menor grado de afinidad a otra naturaleza.
+
+\greybox{Por ejemplo, la especie \textbf{ Zapdos } es de tipo \textbf{ Eléctrico/Volador}, mientras que la especie \textbf{ Pikachu } es sólo de tipo \textbf{ Eléctrico}.}
+
+\subsection{Tipos}
+
+Los \textit{ Tipos } forman parte de un sistema de clasificación basado en la afinidad a cierto poder o elemento natural. 
+Varias cosas en el mundo de Pokémon (cómo las Especies, los Ataques y algunos objetos) pueden verse asociadas a uno o más \textit{ Tipos}.
+\\\\
+Dado que los \textit{ Tipos } representan la influencia de una fuerza natural, es posible afirmar que ciertos tipos son superiores a otros, basándose en cómo estas fuerzas se influencian entre sí. De este modo se puede determinar si un \textit{ Tipos } "Gana" o "Pierde" contra otro. 
+La relación entre los distintos \textit{ Tipos } se ve en la siguiente tabla:
+
+\begin{center}
+    \begin{tabular}{ | l | l |}
+    \hline
+    Tipo & Le Gana A... \\ \hline
+    Fuego & Planta, Hielo, Bicho.\\ \hline
+    Agua & Fuego, Tierra, Roca \\ \hline
+    Planta & Agua, Tierra, Roca.\\ \hline
+    Tierra & Fuego, Eléctrico, Veneno, Roca.\\ \hline
+    Hielo & Planta, Tierra, Volador, Dragón.\\ \hline
+    Roca & Fuego, Hielo, Volador, Bicho.\\ \hline
+    Eléctrico & Agua, Volador.\\ \hline
+    Psíquico & Pelea, Veneno.\\ \hline
+    Pelea & Normal, Hielo, Roca.\\ \hline
+    Fantasma & Psíquico, Fantasma.\\ \hline
+    Volador & Planta, Pelea, Bicho.\\ \hline
+    Bicho & Planta, Psiquico.\\ \hline
+    Veneno & Planta.\\ \hline
+    Dragón & Dragón.\\ \hline
+    Normal & \\ \hline
+    \end{tabular}
+\end{center}
+
+\greybox{Por ejemplo, el tipo \textbf{ Psíquico } es bueno contra los tipos \textbf{ Pelea} y \textbf{ Veneno}, pero es débil contra el tipo \textbf{ Fantastama}.}
+
+\subsection{Ataques}
+
+Cada Pokémon conoce al menos un movimiento o técnica que puede usar durante una pelea, estos movimientos se denominan \textit{ Ataques}.
+\\\\
+Cada Ataque pertenece a \textbf{ un único Tipo} que representa su afinidad a alguna fuerza natural (similar a lo que ocurre con las Especies). 
+Un Pokémon sólo puede aprender ataques de un tipo afín a su Especie, como se describe más adelante.
+\\\\
+Una vez que un Pokémon aprende un \textit{ Ataque } puede usarlo una cierta cantidad de veces antes de tener que descansar. 
+El número de veces que un Ataque puede ser usado antes de descansar se denomina \textbf{ Puntos de Ataque}. 
+Cada vez que un Pokémon usa un Ataque pierde un PA; si ya no le quedan PAs para ese ataque, entonces \textbf{ no puede} atacar.
+\\\\
+El \textit{ Máximo} inicial de \textbf{Puntos de Ataque} que un Pokemón recibe al aprender un \textit{Ataque} depende de cada \textit{Ataque}, sin embargo, es posible, 
+con un entrenamiento riguroso, aumentar el número \textit{Máximo} de \textit{Puntos de Ataque} que un Pokémon tiene disponible.
+
+\greybox{Por ejemplo, el ataque de tipo \textbf{Normal} llamado \textbf{Mordida} tiene un Máximo de 30 \textbf{P.A.} 
+Entonces, cuando un Pokémon lo aprende, empieza con 30 \textbf{P.A.} disponibles y perderá 1 \textbf{P.A.} cada vez que use el ataque. 
+El Pokémon puede recuperar \textbf{P.A.} pero nunca por encima de su \textbf{Máximo}; sin embargo, es posible para ese Pokémon entrenarse y subir su Máximo a un número mayor, mientras que el de todos los demás queda en 30.}
+
+Al efectuar un \textit{Ataque} el Pokémon podría sufrir un efecto colateral que depende de cada ataque.
+
+\greybox{
+\textit{Algunos ejemplos posibles de Efectos son:\newline
+El ataque \textbf{Reposar} aumenta la energía del Pokémon al máximo, pero lo deja dormido.\newline
+El ataque \textbf{Enfocarse} sube la velocidad del Pokémon un punto.\newline
+El ataque \textbf{Endurecerse} sube la energía del Pokémon 5 puntos, pero lo paraliza.}}
+
+\subsection{Evolución}
+
+Tras haber satisfecho cierto requerimiento, los Pokémon cambian de especie. 
+A esto se le llama \textit{"Evolucionar"}. De cada especie se sabe cuál otra especie es su evolución y la condición que sus miembros deben cumplir para evolucionar. 
+Tener en cuenta que \textbf{no todas} las especies pueden evolucionar y, aquellas que sí, tienen \textbf{una única} posible evolución
+\\\\
+Las condiciones que cada Especie puede tener para evolucionar son las siguientes:
+\\\\
+
+\begin{itemize}
+\item \textbf{Subir de Nivel}: Los miembros de las \textit{Especies} con esta condición evolucionan a otra especie cuando alcanzan un cierto nivel, que puede variar para cada \textit{Especie}.
+\item \textbf{Intercambiar}: Los miembros de \textit{Especies} con esta condición sólo evolucionan como consecuencia del profundo trauma emocional que sufren si creen que sus dueños los han \textit{"Intercambiado"} por otro Pokémon.
+\item \textbf{Usar Piedra}: Los miembros de \textit{Especies} con esta condición sólo evolucionan cuando son expuestos a la radiación de unos objetos conocidos como "Piedras Evolutivas". 
+Cada Piedra tiene asociado un Tipo que debe coincidir con el \textit{Tipo Principal} de la Especie para gatillar la evolución. La única excepción a esto son las \textit{Piedras Lunares}, que hacen evolucionar Pokémon de especies arbitrarias.
+\end{itemize}
+
+\greybox{
+Ej:\newline
+La especie \textbf{Charmander} evoluciona a \textbf{Charmeleon} al llegar al Nivel 16, la cual a su vez, evoluciona en \textbf{Charizard} al llegar al Nivel 36. La especie \textbf{Charizard} no evoluciona.\newline
+La especie \textbf{Machop} evoluciona en Machoke al llegar al Nivel 28, pero un \textbf{Machoke} evoluciona en \textbf{Machamp} al ser intercambiado.\newline
+La especie \textbf{Vulpix} evoluciona en \textbf{Ninetales} al ser expuesto a una Piedra Fuego, mientras que la especie \textbf{Jigglypuff} evoluciona en \textbf{Wigglytuff} usando una Piedra Lunar.\newline
+La especie \textbf{Electabuzz} no evoluciona nunca.}
+
+Cuando un Pokémon evoluciona los incrementos que gana por subir de Nivel se aplican de forma retroactiva. Esto quiere decir que el Pokémon incrementa sus Características como si siempre hubiera sido de la nueva Especie.
+
+\section{Requerimientos}
+
+Se pide implementar los siguientes casos de uso, acompañados de sus correspondientes tests y la documentación necesaria para defender su diseño (MÍNIMO un diagrama de clases):
+
+\subsection*{1.Ganar experiencia}
+
+El sistema debe poder registrar el "progreso" de un Pokémon y la actualización de sus estado general.
+\\\\
+Ciertas \textit{Actividades} pueden hacer que el Pokémon gane alguna cantidad de \textit{Experiencia}. Cuando esto ocurre, el Pokémon puede experimentar diversos cambios.
+\\\\
+Si la \textit{Experiencia} alcanza en valor necesario para subir al siguiente Nivel, este aumenta en 1 y las \textit{Características} del Pokémon incrementan de acuerdo a los valores correspondientes a su \textit{Especie}.
+En este punto debe llevarse a cabo, si corresponde, la evolución del Pokémon.
+\\\\
+La cantidad de \textit{Experiencia} para llegar a un nivel es el doble de la necesaria para el nivel anterior, sumado a la Resistencia Evolutiva de la Especie:
+\\\\
+Experiencia para Nivel N = 2 * Experiencia para Nivel (N - 1) + Resistencia Evolutiva
+\\\\
+Obviamente, siendo que todos los Pokémon son, mínimo, \textit{Nivel} 1, no es necesaria ninguna Experiencia para llegar a este nivel.
+
+\greybox{\textit{Por ej, un \textbf{Charmander} tiene una resistencia evolutiva de 350. Eso significa que va a pasar del nivel 1 al 2 cuando junte 350 puntos de experiencia y al nivel 3 cuando junte 1050 (2 * 350 + 350) y al nivel 4 cuando junte 2450 (2 * 1050 + 350).}}
+
+\textbf{NOTA:} Hay que tratar de modelar esto con la mejor representación y menor cantidad de redundancia posible.
+
+\subsection*{2. Actividades}
+
+En el Gimnasio cuentan con un repertorio de \textit{Actividades} para que los Pokémon realicen a modo de entrenamiento. 
+Llevar a cabo una \textit{Actividad} puede repercutir de muchas formas diversas y el sistema debe poder anticiparse a estos cambios, prediciendo cómo puede verse afectado el Pokémon entrenado. 
+Por esta razón, se desea poder calcular cómo quedaría el Pokémon al realizar una \textit{Actividad}.
+\\\\
+Hay que tener en cuenta que un Pokémon no puede realizar ninguna Actividad si se encuentra \textit{K.O.}, así como tampoco puede realizar \textit{Actividades} que dejarían sus \textit{Características} en valores inválidos (Ej: Fuerza > 100 o Peso < 0).
+\\\\
+También hay que considerar que un Pokémon Dormido "ignora" las \textit{Actividades} que se le asignan, es decir, acepta la orden, pero no hace nada y, por lo tanto, no sufre ningún cambio. 
+Un Pokémon dormido puede "ignorar" hasta 3 \textit{Actividades}; después de eso se despierta y se comporta normalmente.
+\\\\
+Las Actividades conocidas son las siguientes:
+\\\\
+\textbf{Realizar un Ataque:}\newline
+Cuando se le pide a un Pokémon que realice un \textit{Ataque} en particular, este gasta un \textit{Punto de Ataque} para ese \textit{Ataque} y gana \textit{Experiencia}. 
+La Experiencia ganada depende de varios factores:
+\begin{itemize}
+ \item Si el Ataque es del Tipo Principal del Pokémon, gana 50 puntos.
+ \item Si el Ataque es del Tipo Secundario del Pokémon y este es Macho, gana 20 puntos.
+ \item Si el Ataque es del Tipo Secundario del Pokémon y este es Hembra, gana 40 puntos (porque es un hecho conocido que las nenas aprenden más rápido).
+ \item Los Ataques de tipo Dragón son especialmente difíciles de hacer, así que ignoran las reglas anteriores y siempre dan 80 puntos.
+\end{itemize}
+
+Además de estos cambios, el Pokémon debe sufrir el efecto secundario del \textit{ Ataque }, si es que tiene alguno.
+En caso de que el Pokémon no conociera el \textit{Ataque} o no tuviera suficientes Puntos de Ataque NO PUEDE realizar la \textit{Actividad}.\newline
+\\\\
+\textbf{Levantar Pesas:}\newline
+Cuando un Pokémon levanta pesas, gana 1 punto de experiencia por cada kilo levantado.\newline
+Los Pokémon con Tipo Principal o Secundario Pelea ganan el doble de puntos.\newline
+Los Pokémon de tipo Fantasma NO PUEDEN levantar pesas.\newline
+Si un Pokémon levanta más de 10 kilos por cada punto de Fuerza, no gana nada de Experiencia y queda Paralizado.\newline
+Si un Pokémon Paralizado levanta pesas, no gana nada de Experiencia y queda K.O..\newline
+\\\\
+
+\textbf{Nadar}:\newline
+Por cada minuto de nado, un Pokémon pierde 1 punto de Energía y gana 200 de Experiencia.\newline
+Los Pokémon de Tipo Agua ganan, además, 1 punto de Velocidad por hora.\newline
+Los Pokémon con un Tipo Principal o Secundario que "pierde" contra el Tipo Agua no ganan nada de Experiencia y quedan K.O. automáticamente.
+\\\\
+\textbf{Aprender Ataque:}\newline
+Cuando se le pide a un Pokémon que aprenda un cierto Ataque, hay dos resultados posibles:
+\begin{itemize}
+ \item Si el Ataque es de un Tipo "afín" a su \textit{Especie}, el Pokémon incorpora el \textit{Ataque} y adquiere automáticamente una cantidad de \textit{Puntos de Ataque} igual al Máximo de Puntos del Ataque.
+Se dice que un Tipo es afín a una Especie si es el Tipo "Normal" o es el \textit{Tipo Principal} o \textit{Secundario} de la Especie.
+ \item Si el Ataque NO es de un \textit{Tipo} afín el Pokémon se lastima tratando de aprenderlo, no aprende nada y queda K.O..
+\end{itemize}
+
+\textbf{Usar Piedra:}\newline
+Si un Pokémon cuya especie tiene como Condición Evolutiva Usar una Piedra Lunar usa una Piedra Lunar, evoluciona.\newline
+Si un Pokémon cuya especie tiene "Usar Piedra" cómo Condición Evolutiva usa una Piedra del mismo Tipo que el Tipo Principal de su Especie, evoluciona.\newline
+En cualquier otro caso, si Tipo de la Piedra le "gana" al Tipo Principal o Secundario de la Especie la radiación de la Piedra lo deja Envenenado.
+\\\\
+\textbf{Usar Poción:}\newline
+Al usar una Poción el Pokémon se cura hasta un máximo de 50 puntos de Energía.
+\\\\
+\textbf{Usar Antidoto:}\newline
+Al usar un Antidoto un Pokémon Envenenado deja de estarlo. De otro modo no pasa nada.
+\\\\
+\textbf{Usar Ether:}\newline
+Al usar un Ether un Pokémon se cura de cualquier estado, menos K.O.. De otro modo no pasa nada.
+\\\\
+\textbf{Comer Hierro:}\newline
+Comer Hierro aumenta en 5 la Fuerza de un Pokémon.
+\\\\
+\textbf{Comer Calcio:}\newline
+Comer Calcio aumenta en 5 la Velocidad de un Pokémon.
+\\\\
+\textbf{Comer Zinc:}\newline
+Comer Zinc aumenta en 2 el Máximo de Puntos de Ataque de todos los Ataques del Pokémon.
+\\\\
+\textbf{Descansar:}\newline
+Cuando un Pokémon descansa recupera al máximo los Puntos de Ataque de todos sus Ataques.
+Además, un Pokémon que no sufre de ningún Estado y tiene menos del 50\% de Energía, se queda Dormido.
+\\\\
+\textbf{Fingir Intercambio:}\newline
+Los Pokémon cuya Especie tiene como Condición Evolutiva "Intercambiar", evolucionan.
+Los demás sólo se ponen tristes y, si son Macho, suben 1 kilo de Peso y si son Hembra bajan 10.
+\\\\
+\textbf{NOTA:} Es importante diferenciar el caso en que un Pokémon "NO PUEDE" hacer una actividad del caso en que la hace y no sufre cambios. 
+Es \textbf{MUY IMPORTANTE} que cuando le pido a un Pokémon que haga algo \textbf{LO HAGA} o me informe de alguna manera que no pudo.
+
+\subsection*{2.b (BONUS)}
+Implementar el punto 2 \textbf{SIN DEFINIR NUEVAS CLASSES/OBJECTS} para las distintas actividades.
+
+\subsection*{3. Rutinas}
+
+Queremos ahora crear Rutinas, que son simplemente conjuntos ordenados de Actividades que un Pokémon puede realizar, a los que damos un nombre.
+De la misma manera que con las Actividades, nuestro sistema debe permitir consultar  cómo queda un Pokémon después de realizar una Rutina.
+Es necesario tener en cuenta que no necesariamente todo Pokémon es capaz de realizar cualquier Rutina y, en caso de que no pueda, sería importante poder averiguar porqué.
+
+\subsection*{4. Analisis de Rutinas}
+
+Dado un Pokémon y un conjunto de Rutinas queremos que el sistema pueda encontrar el nombre de la mejor Rutina (si es que existe alguna...) para ese Pokémon, de acuerdo a un criterio que nos pida el dueño.
+\\\\
+No estamos seguros de que criterios nos pedirá aplicar el dueño, por lo que debemos crear un diseño lo más flexible posible. 
+Sabemos que algunos \textbf{ejemplos de criterios} son:
+
+\begin{itemize}
+ \item Elegir la Rutina que lo haga subir al mayor Nivel posible
+ \item Elegir la Rutina que lo deje con la mayor cantidad de energía posible.
+ \item Elegir la Rutina que lo vuelva lo menos pesado posible.
+\end{itemize}
+
+Es especialmente importante considerar que podría no haber ninguna Rutina en el conjunto que capaz de ser realizada por el Pokémon en cuestión, y el sistema debe manejar esto de forma acorde.
+
+
+\end{document}
+
+
